@@ -736,7 +736,7 @@ func (engine *Engine) PrintRoute(method string) {
 func printNode(node *node, level int) {
 	hlog.SystemLogger().Debugf("node.prefix: %s", node.prefix)
 	hlog.SystemLogger().Debugf("node.ppath: %s", node.ppath)
-	hlog.SystemLogger().Debugf("level: %#v", level)
+	hlog.SystemLogger().Debugf("level: %#v\n", level)
 	for i := 0; i < len(node.children); i++ {
 		printNode(node.children[i], level+1)
 	}
