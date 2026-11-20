@@ -636,6 +636,40 @@ func TestBind_JSON(t *testing.T) {
 	}
 }
 
+// TestBind_JSON_FormTagDoesNotOverrideBody is a regression test for
+// https://github.com/cloudwego/hertz/issues/1563.
+// Fields generated from Thrift's api.body annotation carry both `json` and
+// `form` tags. A same-name query parameter must not overwrite the value that
+// was decoded from the JSON body.
+func TestBind_JSON_FormTagDoesNotOverrideBody(t *testing.T) {
+	type Req struct {
+		Name string `form:"name" json:"name"`
+	}
+
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?name=Ryan").
+		SetJSONContentType().
+		SetBody([]byte(`{"name":"Alice"}`))
+	var result Req
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, "Alice", result.Name)
+
+	// A form body still takes precedence over the query string.
+	req = newMockRequest().
+		SetRequestURI("http://foobar.com?name=Ryan").
+		SetPostArg("name", "Bob").
+		SetUrlEncodeContentType()
+	result = Req{}
+	err = DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, "Bob", result.Name)
+}
+
 func TestBind_ResetJSONUnmarshal(t *testing.T) {
 	bindConfig := &BindConfig{}
 	bindConfig.UseStdJSONUnmarshaler()

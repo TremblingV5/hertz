@@ -41,7 +41,12 @@
 package decoder
 
 import (
+	"strings"
+
+	"github.com/cloudwego/hertz/internal/bytesconv"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
@@ -75,6 +80,17 @@ func postForm(req *protocol.Request, params param.Params, key string, defaultVal
 	if len(ret) != 0 {
 		return ret, true
 	}
+	// The request body has already been decoded into the target struct when it
+	// is JSON or protobuf, so a field tagged with both `form` and `json`
+	// (e.g. generated from Thrift's api.body) already holds the body value.
+	// Falling back to the query string here would silently overwrite it with a
+	// same-name query parameter, see https://github.com/cloudwego/hertz/issues/1563.
+	if hasStructuredBody(req) {
+		if len(ret) == 0 && len(defaultValue) != 0 {
+			ret = defaultValue[0]
+		}
+		return ret, false
+	}
 	if ret, exist = req.URI().QueryArgs().PeekExists(key); exist {
 		return
 	}
@@ -84,6 +100,20 @@ func postForm(req *protocol.Request, params param.Params, key string, defaultVal
 	}
 
 	return ret, false
+}
+
+// hasStructuredBody reports whether the request carries a JSON or protobuf
+// body that has already been decoded into the target struct.
+func hasStructuredBody(req *protocol.Request) bool {
+	if req.Header.ContentLength() <= 0 {
+		return false
+	}
+	ct := bytesconv.B2s(req.Header.ContentType())
+	switch strings.ToLower(utils.FilterContentType(ct)) {
+	case consts.MIMEApplicationJSON, consts.MIMEPROTOBUF:
+		return true
+	}
+	return false
 }
 
 func query(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string, exist bool) {
